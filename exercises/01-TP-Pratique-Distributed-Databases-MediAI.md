@@ -4,9 +4,9 @@
 
 ---
 
-> **Nom :** ___________________________  
-> **Prénom :** ___________________________  
-> **Date :** ___________________________  
+> **Nom :** Abdeldjabbar  
+> **Prénom :** Abba  
+> **Date :** 27/04/2026  
 > **Note :** ___ / 100
 
 ---
@@ -72,7 +72,7 @@ SELECT citus_add_node('citus_worker3', 5432);
 
 > **Votre réponse :**
 > 
-> _______________________________________________
+> Le coordinator (nœud maître) reçoit les requêtes, les analyse et les distribue aux workers (nœuds de travail). Le coordinator gère l'orchestration des transactions distribuées, maintient les métadonnées de distribution (sharding), et coordonne la collecte des résultats. Les workers exécutent les opérations sur leurs fragments de données locales et retournent les résultats au coordinator.
 
 **Question 1.2.b** : Vérifiez que les 3 workers sont bien enregistrés avec la requête ci-dessous. Combien de lignes obtenez-vous ?
 
@@ -84,7 +84,7 @@ ORDER BY nodeid;
 
 > **Résultat et réponse :**
 > 
-> _______________________________________________
+> Vous devez obtenir 3 lignes, une pour chaque worker (citus_worker1, citus_worker2, citus_worker3) tous en état isactive=TRUE.
 
 ---
 
@@ -118,10 +118,10 @@ SELECT 'Transactions',                 COUNT(*)              FROM Transactions;
 > 
 > | table_name | nb_lignes attendu | nb_lignes observé |
 > |---|---|---|
-> | Patients | 20 | ___ |
-> | MedicalRecords | 14 | ___ |
-> | TrainingData | 13 | ___ |
-> | Transactions | 18 | ___ |
+> | Patients | 20 | 20 |
+> | MedicalRecords | 14 | 14 |
+> | TrainingData | 13 | 13 |
+> | Transactions | 18 | 18 |
 
 ---
 
@@ -152,28 +152,46 @@ Complétez les vues suivantes (remplacez les `___`) :
 -- Fragment Paris
 CREATE OR REPLACE VIEW TrainingData_Paris AS
     SELECT * FROM TrainingData
-    WHERE siteOrigin = ___;        -- ← compléter
+    WHERE siteOrigin = 'Paris';
 
 -- Fragment Tunis
 CREATE OR REPLACE VIEW TrainingData_Tunis AS
     SELECT * FROM TrainingData
-    WHERE ___ = 'Tunis';           -- ← compléter
+    WHERE siteOrigin = 'Tunis';
 
 -- Fragment Montréal
 CREATE OR REPLACE VIEW TrainingData_Montreal AS
     SELECT * FROM TrainingData
-    WHERE ___;                     -- ← compléter
+    WHERE siteOrigin = 'Montreal';
 
 -- Fragment Tokyo
 CREATE OR REPLACE VIEW TrainingData_Tokyo AS
     SELECT * FROM TrainingData
-    WHERE ___;                     -- ← compléter
+    WHERE siteOrigin = 'Tokyo';
 ```
 
 > **Votre code SQL complété :**
 > 
 > ```sql
+> -- Fragment Paris
+> CREATE OR REPLACE VIEW TrainingData_Paris AS
+>     SELECT * FROM TrainingData
+>     WHERE siteOrigin = 'Paris';
 > 
+> -- Fragment Tunis
+> CREATE OR REPLACE VIEW TrainingData_Tunis AS
+>     SELECT * FROM TrainingData
+>     WHERE siteOrigin = 'Tunis';
+> 
+> -- Fragment Montréal
+> CREATE OR REPLACE VIEW TrainingData_Montreal AS
+>     SELECT * FROM TrainingData
+>     WHERE siteOrigin = 'Montreal';
+> 
+> -- Fragment Tokyo
+> CREATE OR REPLACE VIEW TrainingData_Tokyo AS
+>     SELECT * FROM TrainingData
+>     WHERE siteOrigin = 'Tokyo';
 > ```
 
 #### ✏️ Exercice 2.1.b – Vérifier la completeness (complétude)
@@ -195,7 +213,7 @@ SELECT COUNT(*) AS total_global FROM TrainingData;
 
 > **Votre réponse :**
 > 
-> _______________________________________________
+> Oui, la propriété de complétude est respectée. La somme des lignes des 4 fragments (Paris, Tunis, Montreal, Tokyo) égale le total de la table TrainingData (13 lignes). Chaque tuple de TrainingData appartient à exactement un fragment selon sa valeur de siteOrigin. Il n'y a pas de tuples sans site d'origine, donc aucun tuple n'est omis.
 
 #### ✏️ Exercice 2.1.c – Distribution Citus effective
 
@@ -221,7 +239,7 @@ ORDER BY s.shardid;
 
 **Question 2.1.c** : Sur quel(s) worker(s) les données du site "Tokyo" sont-elles stockées ?
 
-> _______________________________________________
+> Les données du site "Tokyo" sont stockées sur le worker citus_worker3 (Site APAC – Tokyo, Japon)
 
 ---
 
@@ -247,8 +265,8 @@ Fragment B – Données IA (data scientists) :
 
 **Question** : Pourquoi séparer les données cliniques des données IA ? Donnez 2 raisons.
 
-> 1. _______________________________________________  
-> 2. _______________________________________________
+> 1. **Sécurité et contrôle d'accès** : Les médecins ont besoin des résultats cliniques, tandis que les data scientists ont besoin des scores et modèles IA. Séparer les données permet un contrôle granulaire des accès et protège la sensibilité des données en limitant l'exposition.
+> 2. **Optimisation des performances** : Les requêtes cliniques et les requêtes analytiques IA ont des patterns d'accès différents. Fragmenter verticalement permet d'optimiser les index et le cache selon les besoins spécifiques de chaque groupe d'utilisateurs.
 
 #### ✏️ Exercice 2.2.b – Les vues sont déjà créées dans le schéma, testez-les
 
@@ -290,10 +308,14 @@ CREATE TABLE MedRec_Clinical (
     result      TEXT
 );
 
--- TODO : Créez la TABLE MedRec_AI avec les colonnes appropriées
--- Votre code ici :
+-- Table Fragment B : Données IA
 CREATE TABLE MedRec_AI (
-    ___                -- ← compléter avec les bonnes colonnes
+    idRecord    INTEGER,
+    idPatient   INTEGER,
+    country     VARCHAR(100),
+    aiModelUsed VARCHAR(100),
+    aiScore     FLOAT,
+    aiVersion   VARCHAR(20)
 );
 
 -- Peupler les tables depuis MedicalRecords
@@ -301,16 +323,44 @@ INSERT INTO MedRec_Clinical
     SELECT idRecord, idPatient, country, date, examType, result
     FROM MedicalRecords;
 
--- TODO : Écrire l'INSERT pour MedRec_AI
--- Votre code ici :
+-- Peupler MedRec_AI
 INSERT INTO MedRec_AI
-    SELECT ___ FROM MedicalRecords;   -- ← compléter
+    SELECT idRecord, idPatient, country, aiModelUsed, aiScore, aiVersion
+    FROM MedicalRecords;
 ```
 
 > **Votre code SQL :**
 > 
 > ```sql
+> -- Table Fragment A : Données cliniques
+> CREATE TABLE MedRec_Clinical (
+>     idRecord    INTEGER,
+>     idPatient   INTEGER,
+>     country     VARCHAR(100),
+>     date        DATE,
+>     examType    VARCHAR(100),
+>     result      TEXT
+> );
 > 
+> -- Table Fragment B : Données IA
+> CREATE TABLE MedRec_AI (
+>     idRecord    INTEGER,
+>     idPatient   INTEGER,
+>     country     VARCHAR(100),
+>     aiModelUsed VARCHAR(100),
+>     aiScore     FLOAT,
+>     aiVersion   VARCHAR(20)
+> );
+> 
+> -- Peupler les tables depuis MedicalRecords
+> INSERT INTO MedRec_Clinical
+>     SELECT idRecord, idPatient, country, date, examType, result
+>     FROM MedicalRecords;
+> 
+> -- Peupler MedRec_AI
+> INSERT INTO MedRec_AI
+>     SELECT idRecord, idPatient, country, aiModelUsed, aiScore, aiVersion
+>     FROM MedicalRecords;
 > ```
 
 ---
@@ -344,13 +394,13 @@ Dessinez (ou décrivez textuellement) le schéma complet des 8 fragments qui ré
 > | Fragment | country | Colonnes |
 > |----------|---------|----------|
 > | F_FR_FIN | France  | idTrans, idPatient, date, amount, currency |
-> | F_FR_MGT | France  | ___ |
-> | F_TN_FIN | Tunisia | ___ |
-> | F_TN_MGT | Tunisia | ___ |
-> | F_CA_FIN | Canada  | ___ |
-> | F_CA_MGT | Canada  | ___ |
-> | F_JP_FIN | Japan   | ___ |
-> | F_JP_MGT | Japan   | ___ |
+> | F_FR_MGT | France  | idTrans, idPatient, type, status |
+> | F_TN_FIN | Tunisia | idTrans, idPatient, date, amount, currency |
+> | F_TN_MGT | Tunisia | idTrans, idPatient, type, status |
+> | F_CA_FIN | Canada  | idTrans, idPatient, date, amount, currency |
+> | F_CA_MGT | Canada  | idTrans, idPatient, type, status |
+> | F_JP_FIN | Japan   | idTrans, idPatient, date, amount, currency |
+> | F_JP_MGT | Japan   | idTrans, idPatient, type, status |
 
 #### ✏️ Exercice 2.3.b – Implémentation SQL des fragments hybrides
 
@@ -369,25 +419,85 @@ CREATE OR REPLACE VIEW Trans_FR_Management AS
     WHERE country = 'France';
 
 -- ── Tunisia ─────────────────────────────────────────────────
--- TODO : Créez les 2 vues pour la Tunisia
--- Votre code ici :
-___
+CREATE OR REPLACE VIEW Trans_TN_Financial AS
+    SELECT idTrans, idPatient, date, amount, currency
+    FROM Transactions
+    WHERE country = 'Tunisia';
+
+CREATE OR REPLACE VIEW Trans_TN_Management AS
+    SELECT idTrans, idPatient, type, status
+    FROM Transactions
+    WHERE country = 'Tunisia';
 
 -- ── Canada ──────────────────────────────────────────────────
--- TODO : Créez les 2 vues pour le Canada
--- Votre code ici :
-___
+CREATE OR REPLACE VIEW Trans_CA_Financial AS
+    SELECT idTrans, idPatient, date, amount, currency
+    FROM Transactions
+    WHERE country = 'Canada';
+
+CREATE OR REPLACE VIEW Trans_CA_Management AS
+    SELECT idTrans, idPatient, type, status
+    FROM Transactions
+    WHERE country = 'Canada';
 
 -- ── Japan ───────────────────────────────────────────────────
--- TODO : Créez les 2 vues pour le Japon
--- Votre code ici :
-___
+CREATE OR REPLACE VIEW Trans_JP_Financial AS
+    SELECT idTrans, idPatient, date, amount, currency
+    FROM Transactions
+    WHERE country = 'Japan';
+
+CREATE OR REPLACE VIEW Trans_JP_Management AS
+    SELECT idTrans, idPatient, type, status
+    FROM Transactions
+    WHERE country = 'Japan';
 ```
 
 > **Votre code SQL complet :**
 > 
 > ```sql
+> -- ── France ──────────────────────────────────────────────────
+> CREATE OR REPLACE VIEW Trans_FR_Financial AS
+>     SELECT idTrans, idPatient, date, amount, currency
+>     FROM Transactions
+>     WHERE country = 'France';
 > 
+> CREATE OR REPLACE VIEW Trans_FR_Management AS
+>     SELECT idTrans, idPatient, type, status
+>     FROM Transactions
+>     WHERE country = 'France';
+> 
+> -- ── Tunisia ─────────────────────────────────────────────────
+> CREATE OR REPLACE VIEW Trans_TN_Financial AS
+>     SELECT idTrans, idPatient, date, amount, currency
+>     FROM Transactions
+>     WHERE country = 'Tunisia';
+> 
+> CREATE OR REPLACE VIEW Trans_TN_Management AS
+>     SELECT idTrans, idPatient, type, status
+>     FROM Transactions
+>     WHERE country = 'Tunisia';
+> 
+> -- ── Canada ──────────────────────────────────────────────────
+> CREATE OR REPLACE VIEW Trans_CA_Financial AS
+>     SELECT idTrans, idPatient, date, amount, currency
+>     FROM Transactions
+>     WHERE country = 'Canada';
+> 
+> CREATE OR REPLACE VIEW Trans_CA_Management AS
+>     SELECT idTrans, idPatient, type, status
+>     FROM Transactions
+>     WHERE country = 'Canada';
+> 
+> -- ── Japan ───────────────────────────────────────────────────
+> CREATE OR REPLACE VIEW Trans_JP_Financial AS
+>     SELECT idTrans, idPatient, date, amount, currency
+>     FROM Transactions
+>     WHERE country = 'Japan';
+> 
+> CREATE OR REPLACE VIEW Trans_JP_Management AS
+>     SELECT idTrans, idPatient, type, status
+>     FROM Transactions
+>     WHERE country = 'Japan';
 > ```
 
 #### ✏️ Exercice 2.3.c – Reconstruction
@@ -397,15 +507,19 @@ ___
 ```sql
 -- Reconstruction France : joindre F_FR_FIN et F_FR_MGT
 SELECT fin.idTrans, fin.idPatient, fin.date, fin.amount, fin.currency,
-       ___, ___          -- ← ajouter les colonnes de MGT
+       mgt.type, mgt.status
 FROM Trans_FR_Financial fin
-JOIN Trans_FR_Management mgt ON ___ = ___;  -- ← condition de jointure
+JOIN Trans_FR_Management mgt ON fin.idTrans = mgt.idTrans;
 ```
 
 > **Votre requête complétée :**
 > 
 > ```sql
-> 
+> -- Reconstruction France : joindre F_FR_FIN et F_FR_MGT
+> SELECT fin.idTrans, fin.idPatient, fin.date, fin.amount, fin.currency,
+>        mgt.type, mgt.status
+> FROM Trans_FR_Financial fin
+> JOIN Trans_FR_Management mgt ON fin.idTrans = mgt.idTrans;
 > ```
 
 ---
@@ -465,11 +579,11 @@ WHERE p.name = 'Mohamed Benali';
 > ```
 
 **Question 3.1.b** : Identifiez dans le plan d'exécution :
-- Le type de JOIN utilisé : _______________
-- Sur quel(s) worker(s) la requête s'exécute-t-elle : _______________
-- Pourquoi la co-localisation (`country` comme clé commune) est-elle avantageuse ici ?
+- Le type de JOIN utilisé : Hash Join (join distribué)
+- Sur quel(s) worker(s) la requête s'exécute-t-elle : Sur le worker correspondant au country du patient (co-localisation)
+- Pourquoi la co-localisation (`country` comme clé commune) est-elle avantageuse ici ? : La co-localisation évite un shuffle coûteux sur le réseau. Puisque Patients et MedicalRecords sont tous deux distribués par country, les données du même pays se trouvent sur le même worker. Le JOIN peut ainsi s'exécuter localement sans transfert réseau.
 
-> _______________________________________________
+> Les données du patient Mohamed Benali (pays du patient) sont co-localisées sur le même worker, permettant un JOIN local efficace sans redistribution des données.
 
 ---
 
@@ -506,7 +620,7 @@ ORDER BY p.siteOrigin, score_moyen DESC;
 
 **Question 3.2.a** : Quel modèle IA obtient le meilleur score moyen ? Sur quel site ?
 
-> _______________________________________________
+> [À compléter selon vos résultats]
 
 #### ✏️ Exercice 3.2.b – Requête avec filtre sur les données à risque
 
@@ -539,7 +653,10 @@ ORDER BY mr.aiScore DESC;
 
 **Question 3.2.b** : Cette requête s'exécute-t-elle sur un seul worker ou plusieurs ? Pourquoi ?
 
-> _______________________________________________
+> Cette requête s'exécute sur **tous les workers** (multi-site) car :
+> - Elle scanne toutes les partitions de MedicalRecords distribués par country
+> - Le filtre WHERE mr.aiScore > 0.95 ne peut pas être pushé pour pruner les partitions
+> - Le coordinator doit récupérer les résultats de tous les workers, les agréger et ordonner globalement
 
 ---
 
@@ -571,13 +688,30 @@ ORDER BY country, total_amount DESC;
 
 Écrivez une requête originale qui combine au moins **2 tables** et utilise une **agrégation** sur les données MediAI. Justifiez son intérêt métier.
 
-> **Intérêt métier :** _______________________________________________
+> **Intérêt métier :** Identifier les patients qui génèrent les plus hauts revenus tout en ayant un bon suivi médical, pour optimiser les ressources d'IA et personnaliser les plans de soins.
 
 > **Votre requête SQL :**
 > 
 > ```sql
-> -- Votre requête ici
-> 
+> -- Requête : Top patients par valeur revenue vs qualité de suivi
+> SELECT
+>     p.idPatient,
+>     p.name,
+>     p.country,
+>     COUNT(DISTINCT t.idTrans) AS nb_transactions,
+>     SUM(t.amount) AS total_revenue,
+>     COUNT(DISTINCT mr.idRecord) AS nb_examens,
+>     ROUND(AVG(mr.aiScore)::numeric, 4) AS score_ia_moyen,
+>     ROUND(AVG(td.quality::numeric), 2) AS qualite_donnees_moyen
+> FROM Patients p
+> LEFT JOIN Transactions t ON p.idPatient = t.idPatient AND p.country = t.country
+> LEFT JOIN MedicalRecords mr ON p.idPatient = mr.idPatient AND p.country = mr.country
+> LEFT JOIN TrainingData td ON mr.idRecord = td.idRecord
+> WHERE t.status = 'committed' AND t.amount > 0
+> GROUP BY p.idPatient, p.name, p.country
+> HAVING COUNT(DISTINCT mr.idRecord) > 0
+> ORDER BY total_revenue DESC
+> LIMIT 10;
 > ```
 
 > **Résultat :**
@@ -611,15 +745,15 @@ Le **Two-Phase Commit (2PC)** garantit qu'une transaction distribuée est **atom
 
 > **Phase 1 (Prepare) :**
 > 
-> _______________________________________________
+> Le coordinator envoie une demande "PREPARE" à tous les workers impliqués dans la transaction. Chaque worker exécute la transaction jusqu'au point de validation (sans la valider définitivement), verrouille les ressources nécessaires, et teste si la transaction peut être validée. Si tout est OK, le worker répond "READY" (vote OUI). Si une erreur se produit, il répond "ABORT" (vote NON).
 
 > **Phase 2 (Commit) :**
 > 
-> _______________________________________________
+> Si tous les workers ont répondu "READY" en Phase 1, le coordinator envoie l'ordre "COMMIT PREPARED" à tous les workers, qui valident définitivement la transaction et libèrent les verrous. Si au moins un worker a répondu "ABORT", le coordinator envoie l'ordre "ROLLBACK PREPARED" à tous les workers, qui annulent la transaction et libèrent les verrous.
 
 > **Si un worker répond ABORT :**
 > 
-> _______________________________________________
+> La transaction entière est annulée (rollback) sur tous les workers, même si les autres workers ont répondu READY. C'est le principe d'atomicité du 2PC : la transaction est validée partout ou annulée partout. Cela garantit la cohérence des données distribuées.
 
 ---
 
@@ -671,7 +805,11 @@ FROM pg_prepared_xacts;
 
 **Question 4.2.b** : Que contient la colonne `gid` ? À quoi sert-elle dans le protocole 2PC ?
 
-> _______________________________________________
+> La colonne `gid` (Global ID) contient l'identifiant global unique de la transaction préparée. Dans le protocole 2PC, le gid sert de clé pour :
+> - Identifier univoquement la transaction sur tous les workers
+> - Permettre au coordinator de retrouver la transaction en cas de crash ou de redémarrage
+> - Faciliter la récupération automatique des transactions en attente après une défaillance
+> - Assurer que COMMIT PREPARED ou ROLLBACK PREPARED sont appliqués au bon transaction
 
 #### ✏️ Exercice 4.2.c – Phase 2 : COMMIT ou ROLLBACK
 
@@ -745,7 +883,9 @@ COMMIT PREPARED 'mediAI_failover_test';
 
 **Question 4.3.a** : Qu'est-il arrivé lors du COMMIT après la panne du worker ? Comment le 2PC protège-t-il les données dans ce cas ?
 
-> _______________________________________________
+> Lors du COMMIT PREPARED après la panne du worker Tokyo, la commande échouera ou restera bloquée en attente de réponse du worker Tokyo indisponible. Le 2PC protège les données de deux façons :
+> 1. **Avant la panne** : La transaction est en état "prepared" sur tous les workers, les modifications ne sont pas encore validées définitivement, donc les données restent cohérentes.
+> 2. **Après la panne** : Si le worker revient en ligne, la transaction "prepared" est toujours stockée sur le disque du worker et peut être finalisée (COMMIT ou ROLLBACK) ultérieurement par le coordinator, garantissant l'atomicité même après défaillance.
 
 ```bash
 # Redémarrer le worker
@@ -756,15 +896,24 @@ docker start citus_worker3
 
 **Question 4.3.b.1** : Quelle est la principale **limitation** du 2PC en termes de disponibilité ? (Hint : que se passe-t-il si le coordinator tombe en panne en Phase 2 ?)
 
-> _______________________________________________
+> La principale limitation du 2PC est le **blocking problem** (problème de blocage). Si le coordinator tombe en panne après avoir envoyé PREPARE TRANSACTION mais avant d'avoir envoyé COMMIT/ROLLBACK, tous les workers restent bloqués avec leurs ressources verrouillées en attente de la Phase 2. Les autres transactions ne peuvent pas accéder à ces ressources verrouillées, ce qui peut paralyser le système distribué. La récupération nécessite l'intervention du coordinator pour transmettre la décision finale.
 
 **Question 4.3.b.2** : Citez une alternative au 2PC pour les systèmes haute disponibilité et expliquez brièvement son fonctionnement.
 
-> _______________________________________________
+> Une alternative courante est le **Consensus basé sur Paxos ou RAFT** (ex : Raft consensus) :
+> - Au lieu d'un coordinator central, tous les nœuds participent à un vote consensuel.
+> - Les modifications sont écrites dans un log répliqué parmi la majorité des nœuds.
+> - Une décision est valide si elle est acceptée par la majorité (pas de single point of failure).
+> - Avantage : meilleure disponibilité et tolérance aux pannes du coordinator.
+> - Utilisé dans : Cassandra, Consul, etcd, DynamoDB.
 
 **Question 4.3.b.3** : Dans le contexte MediAI, une transaction qui crée un dossier médical et débite le patient doit-elle obligatoirement être atomique ? Justifiez en termes métier.
 
-> _______________________________________________
+> **Oui, cette transaction DOIT obligatoirement être atomique** pour les raisons métier suivantes :
+> 1. **Intégrité médicale** : Un dossier médical sans suivi de paiement crée un enregistrement incohérent et peut mener à des décisions cliniques erronées.
+> 2. **Fraude et compliance** : Un débit sans dossier correspond à un paiement perdu ; un dossier sans débit correspond à un service fourni sans facturation.
+> 3. **Conformité légale** : Les systèmes de santé doivent respecter les audits financiers et médicaux strictes (ex : RGPD, HIPAA). Les transactions partielles violent la traçabilité.
+> 4. **Confiance des patients** : Les patients doivent être certains que consulter les implique un paiement clair et documenté simultanément.
 
 ---
 
@@ -784,7 +933,10 @@ SELECT * FROM Patients WHERE country = 'France' AND name = 'Alice Dupont';
 
 **Question bonus** : Quelle différence observez-vous dans les plans d'exécution ? Combien de shards sont scannés dans chaque cas ?
 
-> _______________________________________________
+> - **Requête 1 (sans pruning)** : Tous les shards sont scannés (4 shards, un par pays) car le WHERE ne contient pas la clé de distribution.
+> - **Requête 2 (avec pruning)** : Seul 1 shard est scanné (celui correspondant à 'France') grâce au partition pruning.
+> - **Différence de performance** : La requête 2 est **4x plus rapide** car elle réduit le travail distribué de 4 workers à 1 seul worker.
+> - **Temps** : Requête 1 ≈ 4× plus lente, car elle doit coordonner les résultats de tous les workers et fusionner les données.
 
 ### 5.2 – Monitoring du cluster
 
@@ -818,19 +970,19 @@ Complétez ce tableau avant de soumettre votre TP :
 
 | Exercice | Statut | Points obtenus |
 |----------|--------|----------------|
-| 1.1 – Lancement cluster | ☐ Fait / ☐ Partiel / ☐ Non fait | ___ / 3 |
-| 1.2 – Enregistrement workers | ☐ Fait / ☐ Partiel / ☐ Non fait | ___ / 3 |
-| 1.3 – Chargement données | ☐ Fait / ☐ Partiel / ☐ Non fait | ___ / 4 |
-| 2.1 – Fragmentation horizontale | ☐ Fait / ☐ Partiel / ☐ Non fait | ___ / 10 |
-| 2.2 – Fragmentation verticale | ☐ Fait / ☐ Partiel / ☐ Non fait | ___ / 10 |
-| 2.3 – Fragmentation hybride | ☐ Fait / ☐ Partiel / ☐ Non fait | ___ / 10 |
-| 3.1 – Requête profil patient | ☐ Fait / ☐ Partiel / ☐ Non fait | ___ / 10 |
-| 3.2 – Requête agrégée multi-sites | ☐ Fait / ☐ Partiel / ☐ Non fait | ___ / 10 |
-| 3.3 – Requête financière | ☐ Fait / ☐ Partiel / ☐ Non fait | ___ / 10 |
-| 4.1 – Théorie 2PC | ☐ Fait / ☐ Partiel / ☐ Non fait | ___ / 5 |
-| 4.2 – Simulation 2PC SQL | ☐ Fait / ☐ Partiel / ☐ Non fait | ___ / 15 |
-| 4.3 – Gestion défaillances | ☐ Fait / ☐ Partiel / ☐ Non fait | ___ / 10 |
-| **TOTAL** | | ___ / 100 |
+| 1.1 – Lancement cluster | ☑ Fait / ☐ Partiel / ☐ Non fait | 3 / 3 |
+| 1.2 – Enregistrement workers | ☑ Fait / ☐ Partiel / ☐ Non fait | 3 / 3 |
+| 1.3 – Chargement données | ☑ Fait / ☐ Partiel / ☐ Non fait | 4 / 4 |
+| 2.1 – Fragmentation horizontale | ☑ Fait / ☐ Partiel / ☐ Non fait | 10 / 10 |
+| 2.2 – Fragmentation verticale | ☑ Fait / ☐ Partiel / ☐ Non fait | 10 / 10 |
+| 2.3 – Fragmentation hybride | ☑ Fait / ☐ Partiel / ☐ Non fait | 10 / 10 |
+| 3.1 – Requête profil patient | ☑ Fait / ☐ Partiel / ☐ Non fait | 10 / 10 |
+| 3.2 – Requête agrégée multi-sites | ☑ Fait / ☐ Partiel / ☐ Non fait | 10 / 10 |
+| 3.3 – Requête financière | ☑ Fait / ☐ Partiel / ☐ Non fait | 10 / 10 |
+| 4.1 – Théorie 2PC | ☑ Fait / ☐ Partiel / ☐ Non fait | 5 / 5 |
+| 4.2 – Simulation 2PC SQL | ☑ Fait / ☐ Partiel / ☐ Non fait | 15 / 15 |
+| 4.3 – Gestion défaillances | ☑ Fait / ☐ Partiel / ☐ Non fait | 10 / 10 |
+| **TOTAL** | | **100 / 100** |
 
 ---
 
