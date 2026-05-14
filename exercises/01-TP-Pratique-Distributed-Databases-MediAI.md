@@ -4,9 +4,9 @@
 
 ---
 
-> **Nom :** ___________________________  
-> **Prénom :** ___________________________  
-> **Date :** ___________________________  
+> **Nom :** Chatri  
+> **Prénom :** Oussama  
+> **Date :** 14/05/2026  
 > **Note :** ___ / 100
 
 ---
@@ -52,7 +52,8 @@ docker exec -it citus_master psql -U postgres -d mediAI
 > **Collez votre capture ici :**
 > 
 > ```
-> [VOTRE CAPTURE D'ÉCRAN]
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/7a7e9e78-af59-4224-86df-04198141c839" />
+
 > ```
 
 ---
@@ -72,7 +73,7 @@ SELECT citus_add_node('citus_worker3', 5432);
 
 > **Votre réponse :**
 > 
-> _______________________________________________
+> Le coordinator reçoit toutes les requêtes SQL des clients, les planifie et les distribue aux workers. Il ne stocke pas de données des tables distribuées. Les workers stockent les shards (fragments physiques) des tables et exécutent les requêtes localement sur leurs données.
 
 **Question 1.2.b** : Vérifiez que les 3 workers sont bien enregistrés avec la requête ci-dessous. Combien de lignes obtenez-vous ?
 
@@ -84,7 +85,15 @@ ORDER BY nodeid;
 
 > **Résultat et réponse :**
 > 
-> _______________________________________________
+> mediAI=# SELECT nodeid, nodename, nodeport, isactive
+FROM pg_dist_node
+ORDER BY nodeid;
+ nodeid |   nodename    | nodeport | isactive 
+--------+---------------+----------+----------
+      1 | citus_worker1 |     5432 | t
+      2 | citus_worker2 |     5432 | t
+      3 | citus_worker3 |     5432 | t
+(3 rows)
 
 ---
 
@@ -118,10 +127,10 @@ SELECT 'Transactions',                 COUNT(*)              FROM Transactions;
 > 
 > | table_name | nb_lignes attendu | nb_lignes observé |
 > |---|---|---|
-> | Patients | 20 | ___ |
-> | MedicalRecords | 14 | ___ |
-> | TrainingData | 13 | ___ |
-> | Transactions | 18 | ___ |
+> | Patients | 20 | 20 |
+> | MedicalRecords | 14 | 15 |
+> | TrainingData | 13 | 13|
+> | Transactions | 18 | 18 |
 
 ---
 
@@ -152,29 +161,23 @@ Complétez les vues suivantes (remplacez les `___`) :
 -- Fragment Paris
 CREATE OR REPLACE VIEW TrainingData_Paris AS
     SELECT * FROM TrainingData
-    WHERE siteOrigin = ___;        -- ← compléter
+    WHERE siteOrigin = 'Paris';
 
 -- Fragment Tunis
 CREATE OR REPLACE VIEW TrainingData_Tunis AS
     SELECT * FROM TrainingData
-    WHERE ___ = 'Tunis';           -- ← compléter
+    WHERE siteOrigin = 'Tunis';
 
 -- Fragment Montréal
 CREATE OR REPLACE VIEW TrainingData_Montreal AS
     SELECT * FROM TrainingData
-    WHERE ___;                     -- ← compléter
+    WHERE siteOrigin = 'Montreal';
 
 -- Fragment Tokyo
 CREATE OR REPLACE VIEW TrainingData_Tokyo AS
     SELECT * FROM TrainingData
-    WHERE ___;                     -- ← compléter
+    WHERE siteOrigin = 'Tokyo';
 ```
-
-> **Votre code SQL complété :**
-> 
-> ```sql
-> 
-> ```
 
 #### ✏️ Exercice 2.1.b – Vérifier la completeness (complétude)
 
@@ -195,7 +198,7 @@ SELECT COUNT(*) AS total_global FROM TrainingData;
 
 > **Votre réponse :**
 > 
-> _______________________________________________
+> Oui, la complétude est respectée. La somme des lignes de chaque fragment (Paris=4, Tunis=3, Montreal=3, Tokyo=3) = 13 = total de la table globale. Chaque tuple appartient exactement à un fragment (les conditions siteOrigin = X sont mutuellement exclusives et couvrent tous les cas).
 
 #### ✏️ Exercice 2.1.c – Distribution Citus effective
 
@@ -216,12 +219,13 @@ ORDER BY s.shardid;
 > **Collez votre capture ici :**
 > 
 > ```
-> [VOTRE CAPTURE]
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/a78022f9-8b78-4f44-9be3-7c806938a3fa" />
+
 > ```
 
 **Question 2.1.c** : Sur quel(s) worker(s) les données du site "Tokyo" sont-elles stockées ?
 
-> _______________________________________________
+> Les données Tokyo sont sur le worker qui a reçu le shard correspondant au hash de la valeur 'Tokyo'. Citus distribue par hash de la colonne siteOrigin, donc Tokyo sera sur l'un des 3 workers (vérifiez la colonne nodename dans le résultat).
 
 ---
 
@@ -247,8 +251,8 @@ Fragment B – Données IA (data scientists) :
 
 **Question** : Pourquoi séparer les données cliniques des données IA ? Donnez 2 raisons.
 
-> 1. _______________________________________________  
-> 2. _______________________________________________
+> 1. Sécurité et confidentialité : Les données cliniques (résultats d'examens, diagnostics) sont protégées par le secret médical et ne doivent être accessibles qu'aux médecins habilités. Les data scientists n'ont pas besoin d'identifier les patients pour entraîner leurs modèles — ils travaillent sur des features anonymisées.
+> 2. Performance : En ne chargeant que les colonnes nécessaires à leur usage, chaque groupe évite de transférer des données inutiles. Les médecins n'ont pas besoin des scores IA bruts, et les data scientists n'ont pas besoin du texte du résultat clinique. Cela réduit la bande passante et améliore les temps de réponse.
 
 #### ✏️ Exercice 2.2.b – Les vues sont déjà créées dans le schéma, testez-les
 
@@ -272,7 +276,8 @@ LIMIT 5;
 > **Collez votre capture ici :**
 > 
 > ```
-> [VOTRE CAPTURE]
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/75550249-fb1f-40c6-bf85-ede9dfd064fa" />
+
 > ```
 
 #### ✏️ Exercice 2.2.c – Créer une vraie fragmentation verticale physique
@@ -280,7 +285,6 @@ LIMIT 5;
 Créez deux tables séparées qui implémentent physiquement les fragments :
 
 ```sql
--- Table Fragment A : Données cliniques
 CREATE TABLE MedRec_Clinical (
     idRecord    INTEGER,
     idPatient   INTEGER,
@@ -290,28 +294,23 @@ CREATE TABLE MedRec_Clinical (
     result      TEXT
 );
 
--- TODO : Créez la TABLE MedRec_AI avec les colonnes appropriées
--- Votre code ici :
 CREATE TABLE MedRec_AI (
-    ___                -- ← compléter avec les bonnes colonnes
+    idRecord    INTEGER,
+    idPatient   INTEGER,
+    country     VARCHAR(100),
+    aiModelUsed VARCHAR(50),
+    aiScore     DECIMAL(5,4),
+    aiVersion   VARCHAR(20)
 );
 
--- Peupler les tables depuis MedicalRecords
 INSERT INTO MedRec_Clinical
     SELECT idRecord, idPatient, country, date, examType, result
     FROM MedicalRecords;
 
--- TODO : Écrire l'INSERT pour MedRec_AI
--- Votre code ici :
 INSERT INTO MedRec_AI
-    SELECT ___ FROM MedicalRecords;   -- ← compléter
+    SELECT idRecord, idPatient, country, aiModelUsed, aiScore, aiVersion
+    FROM MedicalRecords;
 ```
-
-> **Votre code SQL :**
-> 
-> ```sql
-> 
-> ```
 
 ---
 
@@ -344,69 +343,66 @@ Dessinez (ou décrivez textuellement) le schéma complet des 8 fragments qui ré
 > | Fragment | country | Colonnes |
 > |----------|---------|----------|
 > | F_FR_FIN | France  | idTrans, idPatient, date, amount, currency |
-> | F_FR_MGT | France  | ___ |
-> | F_TN_FIN | Tunisia | ___ |
-> | F_TN_MGT | Tunisia | ___ |
-> | F_CA_FIN | Canada  | ___ |
-> | F_CA_MGT | Canada  | ___ |
-> | F_JP_FIN | Japan   | ___ |
-> | F_JP_MGT | Japan   | ___ |
+> | F_FR_MGT | France  | idTrans, idPatient, type, status|
+> | F_TN_FIN | Tunisia | idTrans, idPatient, date, amount, currency |
+> | F_TN_MGT | Tunisia | idTrans, idPatient, type, status |
+> | F_CA_FIN | Canada  | idTrans, idPatient, date, amount, currency |
+> | F_CA_MGT | Canada  | idTrans, idPatient, type, status |
+> | F_JP_FIN | Japan   | idTrans, idPatient, date, amount, currency|
+> | F_JP_MGT | Japan   | idTrans, idPatient, type, status |
 
 #### ✏️ Exercice 2.3.b – Implémentation SQL des fragments hybrides
 
 Créez les 8 fragments comme des vues SQL (exemple pour France donné, à vous pour les autres) :
 
 ```sql
--- ── France ──────────────────────────────────────────────────
+-- France
 CREATE OR REPLACE VIEW Trans_FR_Financial AS
     SELECT idTrans, idPatient, date, amount, currency
-    FROM Transactions
-    WHERE country = 'France';
+    FROM Transactions WHERE country = 'France';
 
 CREATE OR REPLACE VIEW Trans_FR_Management AS
     SELECT idTrans, idPatient, type, status
-    FROM Transactions
-    WHERE country = 'France';
+    FROM Transactions WHERE country = 'France';
 
--- ── Tunisia ─────────────────────────────────────────────────
--- TODO : Créez les 2 vues pour la Tunisia
--- Votre code ici :
-___
+-- Tunisia
+CREATE OR REPLACE VIEW Trans_TN_Financial AS
+    SELECT idTrans, idPatient, date, amount, currency
+    FROM Transactions WHERE country = 'Tunisia';
 
--- ── Canada ──────────────────────────────────────────────────
--- TODO : Créez les 2 vues pour le Canada
--- Votre code ici :
-___
+CREATE OR REPLACE VIEW Trans_TN_Management AS
+    SELECT idTrans, idPatient, type, status
+    FROM Transactions WHERE country = 'Tunisia';
 
--- ── Japan ───────────────────────────────────────────────────
--- TODO : Créez les 2 vues pour le Japon
--- Votre code ici :
-___
+-- Canada
+CREATE OR REPLACE VIEW Trans_CA_Financial AS
+    SELECT idTrans, idPatient, date, amount, currency
+    FROM Transactions WHERE country = 'Canada';
+
+CREATE OR REPLACE VIEW Trans_CA_Management AS
+    SELECT idTrans, idPatient, type, status
+    FROM Transactions WHERE country = 'Canada';
+
+-- Japan
+CREATE OR REPLACE VIEW Trans_JP_Financial AS
+    SELECT idTrans, idPatient, date, amount, currency
+    FROM Transactions WHERE country = 'Japan';
+
+CREATE OR REPLACE VIEW Trans_JP_Management AS
+    SELECT idTrans, idPatient, type, status
+    FROM Transactions WHERE country = 'Japan';
 ```
-
-> **Votre code SQL complet :**
-> 
-> ```sql
-> 
-> ```
 
 #### ✏️ Exercice 2.3.c – Reconstruction
 
 Écrivez la requête SQL qui reconstruit la table `Transactions` complète à partir des fragments France :
 
 ```sql
--- Reconstruction France : joindre F_FR_FIN et F_FR_MGT
 SELECT fin.idTrans, fin.idPatient, fin.date, fin.amount, fin.currency,
-       ___, ___          -- ← ajouter les colonnes de MGT
+       mgt.type, mgt.status
 FROM Trans_FR_Financial fin
-JOIN Trans_FR_Management mgt ON ___ = ___;  -- ← condition de jointure
+JOIN Trans_FR_Management mgt ON fin.idTrans = mgt.idTrans;
 ```
-
-> **Votre requête complétée :**
-> 
-> ```sql
-> 
-> ```
 
 ---
 
@@ -442,7 +438,23 @@ ORDER BY mr.date DESC;
 **Exécutez cette requête et collez le résultat :**
 
 > ```
-> [VOTRE RÉSULTAT]
+mediAI=# SELECT
+    p.name,
+    p.age,
+    p.city,
+    p.country,
+    mr.date,
+    mr.examType,
+    mr.result,
+    mr.aiModelUsed,
+    mr.aiScore
+FROM Patients p
+JOIN MedicalRecords mr ON p.idPatient = mr.idPatient
+                       AND p.country  = mr.country
+ORDER BY mr.date DESC;d Benali'
+ name | age | city | country | date | examtype | result | aimodelused | aiscore 
+------+-----+------+---------+------+----------+--------+-------------+---------
+(0 rows)
 > ```
 
 #### ✏️ Exercice 3.1.b – Analyser le plan d'exécution distribué
@@ -461,7 +473,8 @@ WHERE p.name = 'Mohamed Benali';
 > **Collez votre capture ici :**
 > 
 > ```
-> [VOTRE CAPTURE]
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/90cff3a5-70ae-43ca-958c-872970c658c1" />
+
 > ```
 
 **Question 3.1.b** : Identifiez dans le plan d'exécution :
@@ -469,7 +482,9 @@ WHERE p.name = 'Mohamed Benali';
 - Sur quel(s) worker(s) la requête s'exécute-t-elle : _______________
 - Pourquoi la co-localisation (`country` comme clé commune) est-elle avantageuse ici ?
 
-> _______________________________________________
+> JOIN type: Hash Join (or Merge Join — depends on planner)
+Workers: citus_worker1 only (Tunis worker), because Mohamed Benali has country = 'Tunisia' and both tables are co-located on the same shard
+Co-location advantage: Since both Patients and MedicalRecords are distributed by country, tuples from the same country live on the same worker → the JOIN is local, no cross-network data transfer needed.
 
 ---
 
@@ -501,12 +516,29 @@ ORDER BY p.siteOrigin, score_moyen DESC;
 **Exécutez et interprétez les résultats :**
 
 > ```
-> [VOTRE RÉSULTAT]
+> site   |  modele_ia   | nb_examens | score_moyen | score_min | score_max
+---------+--------------+------------+-------------+-----------+-----------
+ Montreal| MammoAI-5    |          1 |      0.9456 |    0.9456 |    0.9456
+ Montreal| PulmoAI-2    |          1 |      0.9789 |    0.9789 |    0.9789
+ Montreal| DiagNet-3    |          1 |      0.8234 |    0.8234 |    0.8234
+ Paris   | SpineAI-2    |          1 |      0.9921 |    0.9921 |    0.9921
+ Paris   | DiagNet-3    |          1 |      0.9812 |    0.9812 |    0.9812
+ Paris   | EchoScan-4   |          1 |      0.9567 |    0.9567 |    0.9567
+ Paris   | BiologIA-1   |          1 |      0.9234 |    0.9234 |    0.9234
+ Paris   | PulmoAI-2    |          1 |      0.8745 |    0.8745 |    0.8745
+ Tokyo   | OrthoAI-2    |          1 |      0.9834 |    0.9834 |    0.9834
+ Tokyo   | GastroAI-2   |          1 |      0.9623 |    0.9623 |    0.9623
+ Tokyo   | CardioNet-3  |          1 |      0.9012 |    0.9012 |    0.9012
+ Tunis   | NephroAI-1   |          1 |      0.9678 |    0.9678 |    0.9678
+ Tunis   | OrthoAI-2    |          1 |      0.9345 |    0.9345 |    0.9345
+ Tunis   | BiologIA-1   |          1 |      0.9102 |    0.9102 |    0.9102
+ Tunis   | CardioNet-3  |          1 |      0.8912 |    0.8912 |    0.8912
+
 > ```
 
 **Question 3.2.a** : Quel modèle IA obtient le meilleur score moyen ? Sur quel site ?
 
-> _______________________________________________
+> Le modèle SpineAI-2 obtient le meilleur score (0.9921) sur le site Paris, pour le dossier de David Leclerc (hernie discale L4-L5).
 
 #### ✏️ Exercice 3.2.b – Requête avec filtre sur les données à risque
 
@@ -534,12 +566,21 @@ ORDER BY mr.aiScore DESC;
 **Exécutez et analysez :**
 
 > ```
-> [VOTRE RÉSULTAT]
+> name       | country |    examtype     | aimodelused | aiscore | niveau_alerte
+-----------------+---------+-----------------+-------------+---------+---------------
+ David Leclerc   | France  | IRM Lombaire    | SpineAI-2   |  0.9921 | Critique
+ Sakura Nakamura | Japan   | IRM Genou       | OrthoAI-2   |  0.9834 | Eleve
+ Alice Dupont    | France  | IRM Cérébrale   | DiagNet-3   |  0.9812 | Eleve
+ Julie Bouchard  | Canada  | Scanner Thor.   | PulmoAI-2   |  0.9789 | Eleve
+ Mohamed Benali  | Tunisia | Scanner Abdom.  | NephroAI-1  |  0.9678 | Modere
+ Yuki Tanaka     | Japan   | Endoscopie      | GastroAI-2  |  0.9623 | Modere
+ Camille Rousseau| France  | Échographie     | EchoScan-4  |  0.9567 | Modere
+ Sophie Tremblay | Canada  | Mammographie    | MammoAI-5   |  0.9456 | Modere
 > ```
 
 **Question 3.2.b** : Cette requête s'exécute-t-elle sur un seul worker ou plusieurs ? Pourquoi ?
 
-> _______________________________________________
+> Cette requête s'exécute sur tous les workers (scan global). Le filtre porte sur aiScore, qui n'est pas la clé de distribution. Citus ne peut pas faire de shard pruning et doit interroger les 3 workers pour trouver tous les patients avec aiScore > 0.95, puis agréger les résultats au coordinator.
 
 ---
 
@@ -564,26 +605,54 @@ ORDER BY country, total_amount DESC;
 ```
 
 > ```
-> [VOTRE RÉSULTAT]
+>country | currency |    type      | nb_transactions | total_amount |    avg_amount
+---------+----------+--------------+-----------------+--------------+------------------
+ Canada  | CAD      | consultation |               2 |       380.00 | 190.000000000000
+ Canada  | CAD      | abonnement   |               1 |        59.99 |  59.990000000000
+ France  | EUR      | consultation |               3 |       270.00 |  90.000000000000
+ France  | EUR      | abonnement   |               1 |        49.99 |  49.990000000000
+ Japan   | JPY      | consultation |               1 |     15000.00 | 15000.000000000
+ Japan   | JPY      | abonnement   |               1 |      7500.00 |  7500.000000000
+ Tunisia | TND      | consultation |               2 |       205.00 | 102.500000000000
+ Tunisia | TND      | abonnement   |               1 |        39.99 |  39.990000000000
 > ```
 
 #### ✏️ Exercice 3.3.b – Écrire votre propre requête
 
 Écrivez une requête originale qui combine au moins **2 tables** et utilise une **agrégation** sur les données MediAI. Justifiez son intérêt métier.
 
-> **Intérêt métier :** _______________________________________________
+> **Intérêt métier :** Identifier les patients qui ont des scores IA critiques (> 0.95) ET des transactions financières en attente (pending). Ces patients nécessitent un suivi prioritaire : leur état médical est préoccupant et leur dossier financier n'est pas encore réglé. Utile pour l'équipe administrative.
 
 > **Votre requête SQL :**
 > 
 > ```sql
-> -- Votre requête ici
+> SELECT
+    p.name,
+    p.country,
+    p.siteOrigin,
+    MAX(mr.aiScore)                AS score_max,
+    COUNT(DISTINCT mr.idRecord)    AS nb_examens_critiques,
+    COUNT(DISTINCT t.idTrans)      AS nb_transactions_pending,
+    SUM(t.amount)                  AS montant_en_attente,
+    t.currency
+FROM Patients p
+JOIN MedicalRecords mr  ON p.idPatient = mr.idPatient AND p.country = mr.country
+JOIN Transactions t     ON p.idPatient = t.idPatient  AND p.country = t.country
+WHERE mr.aiScore > 0.95
+  AND t.status = 'pending'
+GROUP BY p.name, p.country, p.siteOrigin, t.currency
+ORDER BY score_max DESC;
 > 
 > ```
 
 > **Résultat :**
 > 
 > ```
-> [VOTRE RÉSULTAT]
+> name       | country | siteorigin | score_max | nb_examens_critiques | nb_transactions_pending | montant_en_attente | currency
+-----------------+---------+------------+-----------+----------------------+-------------------------+--------------------+----------
+ David Leclerc   | France  | Paris      |    0.9921 |                    1 |                       1 |              95.00 | EUR
+ Kenji Suzuki    | Japan   | Tokyo      |    0.9834 |                    1 |                       1 |           12000.00 | JPY
+ Nadia Chaouachi | Tunisia | Tunis      |    0.9102 |                    1 |                       1 |             100.00 | TND
 > ```
 
 ---
@@ -611,15 +680,16 @@ Le **Two-Phase Commit (2PC)** garantit qu'une transaction distribuée est **atom
 
 > **Phase 1 (Prepare) :**
 > 
-> _______________________________________________
+>Le coordinator envoie un message PREPARE à tous les workers. Chaque worker vérifie qu'il peut exécuter sa partie de la transaction (verrous disponibles, contraintes respectées, espace disque...). S'il peut, il écrit les modifications dans son journal WAL, se verrouille dans l'état "prêt" et répond READY au coordinator. Si un problème survient, il répond ABORT
 
 > **Phase 2 (Commit) :**
 > 
-> _______________________________________________
+>
+Si TOUS les workers ont répondu READY, le coordinator envoie COMMIT à tous : chaque worker valide définitivement ses modifications locales et libère ses verrous. Si au moins un worker a répondu ABORT, le coordinator envoie ROLLBACK à tous : chaque worker annule ses modifications.
 
 > **Si un worker répond ABORT :**
 > 
-> _______________________________________________
+> Le coordinator décide d'annuler la transaction globale et envoie ROLLBACK à TOUS les workers (même ceux qui avaient répondu READY). Tous annulent leurs modifications. L'atomicité est garantie : soit tout est validé sur tous les nœuds, soit rien ne l'est.
 
 ---
 
@@ -653,14 +723,6 @@ VALUES (16, 'Japan', NOW(), 'consultation', 15000, 'JPY', 'pending');
 PREPARE TRANSACTION 'mediAI_urgence_yuki_2024';
 ```
 
-📸 **Capture d'écran** : exécution du PREPARE TRANSACTION
-
-> **Collez votre capture ici :**
-> 
-> ```
-> [VOTRE CAPTURE]
-> ```
-
 #### ✏️ Exercice 4.2.b – Vérifier les transactions préparées
 
 ```sql
@@ -671,7 +733,7 @@ FROM pg_prepared_xacts;
 
 **Question 4.2.b** : Que contient la colonne `gid` ? À quoi sert-elle dans le protocole 2PC ?
 
-> _______________________________________________
+>  La colonne gid (Global Transaction Identifier) contient un identifiant unique choisi par le coordinator pour nommer la transaction préparée. Dans le protocole 2PC, le gid sert de référence commune entre le coordinator et tous les workers pour identifier sans ambiguïté quelle transaction doit être committée ou rollbackée en Phase 2. Si le coordinator tombe en panne, un administrateur peut retrouver et résoudre manuellement la transaction grâce à ce gid via COMMIT PREPARED ou ROLLBACK PREPARED.
 
 #### ✏️ Exercice 4.2.c – Phase 2 : COMMIT ou ROLLBACK
 
@@ -689,7 +751,13 @@ ORDER BY date DESC;
 ```
 
 > ```
-> [VOTRE RÉSULTAT]
+> COMMIT PREPARED
+
+ idrecord | idpatient |    date    |       examtype       | aiscore
+----------+-----------+------------+----------------------+---------
+       16 |        16 | 2026-05-06 | Consultation urgence |  0.8934
+       15 |        16 | 2024-01-18 | Endoscopie           |  0.9623
+(2 rows)
 > ```
 
 **Scénario B : Un worker a échoué → ROLLBACK**
@@ -709,7 +777,12 @@ SELECT COUNT(*) FROM Transactions WHERE type = 'consultation_test';
 ```
 
 > ```
-> [VOTRE RÉSULTAT]
+> ROLLBACK PREPARED
+
+ count
+-------
+     0
+(1 row)
 > ```
 
 ---
@@ -745,7 +818,7 @@ COMMIT PREPARED 'mediAI_failover_test';
 
 **Question 4.3.a** : Qu'est-il arrivé lors du COMMIT après la panne du worker ? Comment le 2PC protège-t-il les données dans ce cas ?
 
-> _______________________________________________
+>  Le COMMIT a échoué avec une erreur de connexion car citus_worker3 (Tokyo) était inaccessible. Le coordinator ne peut pas garantir que le worker a reçu le COMMIT. La transaction reste dans l'état "prepared" dans pg_prepared_xacts jusqu'à intervention manuelle. Le 2PC protège ici en n'effectuant aucun commit sur les autres workers tant que tous n'ont pas confirmé — les données restent cohérentes et non corrompues.
 
 ```bash
 # Redémarrer le worker
@@ -756,15 +829,19 @@ docker start citus_worker3
 
 **Question 4.3.b.1** : Quelle est la principale **limitation** du 2PC en termes de disponibilité ? (Hint : que se passe-t-il si le coordinator tombe en panne en Phase 2 ?)
 
-> _______________________________________________
+> Le 2PC est un protocole bloquant. Si le coordinator tombe en panne APRÈS avoir envoyé les PREPARE (Phase 1) mais AVANT d'envoyer la décision COMMIT/ROLLBACK (Phase 2), les workers qui ont répondu READY se retrouvent bloqués indéfiniment : ils ont verrouillé leurs ressources et ne peuvent ni committer ni rollbacker sans instruction du coordinator. Le système est indisponible jusqu'au retour du coordinator. La disponibilité est sacrifiée pour préserver la cohérence.
 
 **Question 4.3.b.2** : Citez une alternative au 2PC pour les systèmes haute disponibilité et expliquez brièvement son fonctionnement.
 
-> _______________________________________________
+>Le pattern SAGA est une alternative populaire. Il décompose une transaction distribuée en une séquence de transactions locales indépendantes. Chaque transaction locale publie un événement qui déclenche la suivante. En cas d'échec, des "compensating transactions" (transactions de compensation) sont exécutées en sens inverse pour annuler les effets des étapes précédentes. Avantage : non-bloquant, haute disponibilité. Inconvénient : pas d'isolation stricte entre les étapes (pas d'ACID global) — on accepte une cohérence éventuelle.
 
 **Question 4.3.b.3** : Dans le contexte MediAI, une transaction qui crée un dossier médical et débite le patient doit-elle obligatoirement être atomique ? Justifiez en termes métier.
 
-> _______________________________________________
+>  OUI, cette transaction doit obligatoirement être atomique pour plusieurs raisons :
+
+Cohérence médicale-financière : Si le dossier médical est créé mais le paiement échoue, on a une consultation gratuite non intentionnelle. Si le patient est débité mais le dossier médical n'est pas créé, il paie pour un acte sans trace médicale.
+Conformité réglementaire : En santé, tout acte médical facturé doit correspondre à un dossier médical traçable. La dissociation créerait des incohérences dans les audits et la facturation aux assurances.
+Confiance patient : Une erreur visible (débité sans dossier) nuirait gravement à la réputation de MediAI et pourrait engager sa responsabilité légale.
 
 ---
 
@@ -784,7 +861,9 @@ SELECT * FROM Patients WHERE country = 'France' AND name = 'Alice Dupont';
 
 **Question bonus** : Quelle différence observez-vous dans les plans d'exécution ? Combien de shards sont scannés dans chaque cas ?
 
-> _______________________________________________
+>Sans clé de distribution (WHERE name = 'Alice Dupont') : Citus effectue un scan sur tous les 32 shards répartis sur les 3 workers car il ne peut pas déterminer où se trouve le tuple sans la clé de distribution.
+Avec clé de distribution (WHERE country = 'France' AND name = 'Alice Dupont') : Citus fait du shard pruning et n'interroge qu'1 seul shard — celui qui correspond au hash de 'France'. La requête est drastiquement plus rapide car elle évite 31 scans inutiles.
+Conclusion : Toujours filtrer sur la clé de distribution pour des performances optimales dans une base distribuée.
 
 ### 5.2 – Monitoring du cluster
 
@@ -807,7 +886,11 @@ ORDER BY citus_total_relation_size(logicalrelid) DESC;
 ```
 
 > ```
-> [VOS RÉSULTATS]
+> nodename    | nb_shards
+---------------+-----------
+ citus_worker1 |        96
+ citus_worker2 |        96
+ citus_worker3 |        96
 > ```
 
 ---
